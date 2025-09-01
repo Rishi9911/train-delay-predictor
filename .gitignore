@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+myenv/
+.env
+.env.*
+
+# VSCode
+.vscode/
+
+# Node
+node_modules/
+npm-debug.log
+yarn-error.log
+
+# macOS
+.DS_Store
+
+# ML / Model files
+*.pkl
+*.h5
+*.pt
+
+# Logs
+*.log
