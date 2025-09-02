@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
 function Login({ setAuth, setUsername }) {
   const [form, setForm] = useState({ username: '', password: '' });
   const [error, setError] = useState('');
@@ -13,7 +15,7 @@ function Login({ setAuth, setUsername }) {
     e.preventDefault();
     try {
       const res = await axios.post(
-        'http://localhost:5000/login', 
+        '${API_URL}/login', 
         form, 
         { withCredentials: true } // important for Flask session
       );

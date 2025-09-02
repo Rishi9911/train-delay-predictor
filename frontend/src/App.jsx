@@ -12,6 +12,9 @@ import { MdEmail } from "react-icons/md";
 
 axios.defaults.withCredentials = true;
 
+const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+
+
 function App() {
   const [auth, setAuth] = useState(false);
   const [username, setUsername] = useState("");
@@ -37,7 +40,7 @@ function App() {
 
   // Fetch username on refresh
   useEffect(() => {
-    axios.get("http://localhost:5000/profile", { withCredentials: true })
+    axios.get("${API_URL}/profile", { withCredentials: true })
       .then(res => {
         if (res.data.username) {
           setAuth(true);
@@ -48,7 +51,7 @@ function App() {
   }, []);
 
   const handleLogout = async () => {
-    await axios.post("http://localhost:5000/logout", {}, { withCredentials: true });
+    await axios.post("${API_URL}/logout", {}, { withCredentials: true });
     setAuth(false);
     setUsername("");
     setResult(null);
@@ -60,7 +63,7 @@ function App() {
 
   const fetchHistory = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/history", { withCredentials: true });
+      const res = await axios.get("${API_URL}/history", { withCredentials: true });
       setHistory(res.data);
     } catch {
       toast.error("Failed to fetch history.");
@@ -72,7 +75,7 @@ function App() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post("http://localhost:5000/predict", form, { withCredentials: true });
+      const res = await axios.post("${API_URL}/predict", form, { withCredentials: true });
       setResult(res.data.predicted_delay);
       toast.success(`Predicted Delay: ${res.data.predicted_delay} min`);
     } catch {
@@ -168,7 +171,7 @@ function App() {
   );
 
   const handleLoginSuccess = () => {
-    axios.get("http://localhost:5000/profile", { withCredentials: true })
+    axios.get("${API_URL}/profile", { withCredentials: true })
       .then(res => {
         if (res.data.username) {
           setUsername(res.data.username);
