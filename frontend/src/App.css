@@ -87,7 +87,7 @@ body, html {
 /* ----------------- Hero Section ----------------- */
 .hero {
   height: 70vh;
-  background: url('train_delay_predictor\frontend\public\images\hero-train.jpg') center/cover no-repeat;
+  background: url('/images/hero-train.jpg') center/cover no-repeat;
   display: flex;
   align-items: center;
   justify-content: center;
