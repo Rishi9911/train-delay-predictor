@@ -105,6 +105,12 @@ mail = Mail(app)
 def health():
     return jsonify({"status": "ok"}), 200
 
+# ---------------- root route ----------------
+@app.route("/")
+def root():
+    return jsonify({"message": "Train Delay Predictor API is running!"})
+
+
 # ---------------- Register ----------------
 @app.route("/register", methods=["POST"])
 def register():

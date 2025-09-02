@@ -12,7 +12,7 @@ import { MdEmail } from "react-icons/md";
 
 axios.defaults.withCredentials = true;
 
-const API_URL = process.env.REACT_APP_API_URL || "http://localhost:5000";
+const API_URL = process.env.REACT_APP_API_URL;
 
 
 function App() {
