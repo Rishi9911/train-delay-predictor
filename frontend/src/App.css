@@ -87,13 +87,16 @@ body, html {
 /* ----------------- Hero Section ----------------- */
 .hero {
   height: 70vh;
-  background: url('/images/hero-train.jpg') center/cover no-repeat;
   display: flex;
   align-items: center;
   justify-content: center;
   text-align: center;
   color: white;
   position: relative;
+
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
 }
 .hero::after {
   content: "";
