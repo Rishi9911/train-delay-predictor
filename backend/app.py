@@ -7,31 +7,61 @@ import pandas as pd
 import joblib
 import os
 from datetime import datetime
-from flask_mail import Mail, Message 
+from flask_mail import Mail, Message
+from urllib.parse import urlparse
 
 # ---------------- Flask App Setup ----------------
-app = Flask(__name__)
-app.secret_key = '4087aec5b07d56a03909a669b1ae4864a7702d20a1e6078cf010186253ac7480'
-CORS(app, supports_credentials=True)
-
-# PostgreSQL config
-DB_HOST = "localhost"
-DB_NAME = "train_delay_db"
-DB_USER = "postgres"
-DB_PASS = "rishi@123"
-
-# Load ML Model
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_PATH = os.path.join(BASE_DIR, "best_model.pkl")
-model = joblib.load(MODEL_PATH)
+
+app = Flask(__name__)
+
+# Secrets & frontend origin (read from env, fall back to safe local defaults)
+app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+# Enable CORS for the frontend + localhost during development
+CORS(app, resources={r"/*": {"origins": [FRONTEND_URL, "http://localhost:3000"]}}, supports_credentials=True)
+
+# ---------------- Database config (support DATABASE_URL) ----------------
+DATABASE_URL = os.getenv("DATABASE_URL")  # e.g. postgres://user:pass@host:port/dbname
+
+# if you prefer separate vars, those will be used only when DATABASE_URL not set:
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = int(os.getenv("DB_PORT", 5432))
+DB_NAME = os.getenv("DB_NAME", "train_delay_db")
+DB_USER = os.getenv("DB_USER", "postgres")
+DB_PASS = os.getenv("DB_PASS", "rishi@123")
 
 def get_db_connection():
-    return psycopg2.connect(
-        host=DB_HOST,
-        dbname=DB_NAME,
-        user=DB_USER,
-        password=DB_PASS
-    )
+    """
+    Connect using DATABASE_URL if present (Render provides this),
+    otherwise use individual DB_* environment vars or local defaults.
+    """
+    try:
+        if DATABASE_URL:
+            # psycopg2 accepts a connection string directly
+            return psycopg2.connect(DATABASE_URL)
+        else:
+            return psycopg2.connect(
+                host=DB_HOST,
+                port=DB_PORT,
+                dbname=DB_NAME,
+                user=DB_USER,
+                password=DB_PASS
+            )
+    except Exception as e:
+        # log for debugging - on Render logs will show this
+        print("[DB CONNECT] Error connecting to DB:", e)
+        raise
+
+# ---------------- ML model load (safe) ----------------
+MODEL_PATH = os.path.join(BASE_DIR, "best_model.pkl")
+try:
+    model = joblib.load(MODEL_PATH)
+    print("Model loaded from", MODEL_PATH)
+except Exception as e:
+    print("Model load failed:", e)
+    model = None
 
 # ---------------- Flask-Login ----------------
 login_manager = LoginManager()
@@ -44,25 +74,36 @@ class User(UserMixin):
 
 @login_manager.user_loader
 def load_user(user_id):
-    conn = get_db_connection()
-    cur = conn.cursor()
-    cur.execute("SELECT id, username FROM users WHERE id = %s", (user_id,))
-    user = cur.fetchone()
-    cur.close()
-    conn.close()
-    if user:
-        return User(user[0], user[1])
+    try:
+        conn = get_db_connection()
+        cur = conn.cursor()
+        cur.execute("SELECT id, username FROM users WHERE id = %s", (user_id,))
+        user = cur.fetchone()
+        cur.close()
+        conn.close()
+        if user:
+            return User(user[0], user[1])
+    except Exception as e:
+        print("[LOAD_USER] Error:", e)
     return None
 
-# ---------------- Flask-Mail Config ----------------
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = 'rishichaudhari999@gmail.com'        # Replace
-app.config['MAIL_PASSWORD'] = 'hzrr rfcb kage cqjg'     # Replace with App Password
-app.config['MAIL_DEFAULT_SENDER'] = ('Train Delay Predictor', 'rishichaudhari999@gmail.com')
+# ---------------- Flask-Mail Config (from env) ----------------
+app.config['MAIL_SERVER'] = os.getenv("MAIL_SERVER", "smtp.gmail.com")
+app.config['MAIL_PORT'] = int(os.getenv("MAIL_PORT", 587))
+app.config['MAIL_USE_TLS'] = os.getenv("MAIL_USE_TLS", "True") == "True"
+app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME", None)
+app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD", None)
+app.config['MAIL_DEFAULT_SENDER'] = (
+    os.getenv("MAIL_DEFAULT_SENDER_NAME", "Train Delay Predictor"),
+    os.getenv("MAIL_DEFAULT_SENDER_EMAIL", app.config['MAIL_USERNAME'])
+)
 
 mail = Mail(app)
+
+# ---------------- Health route ----------------
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"}), 200
 
 # ---------------- Register ----------------
 @app.route("/register", methods=["POST"])
@@ -96,7 +137,7 @@ def register():
         user_obj = User(user_id, username)
         login_user(user_obj)
 
-        # Send Welcome Email
+        # Send Welcome Email (uses FRONTEND_URL from env)
         try:
             msg = Message(
                 subject="Welcome to Train Delay Predictor 🚆",
@@ -110,12 +151,16 @@ def register():
                     <li>Track your history</li>
                     <li>Enjoy our AI-powered dashboard</li>
                 </ul>
-                <p>🔹 <a href="http://localhost:3000/">Click here to Login</a></p>
+                <p>🔹 <a href="{FRONTEND_URL}">Click here to Login</a></p>
                 <br>
                 <p>Thanks for joining us!<br>🚆 Train Delay Predictor Team</p>
                 """
             )
-            mail.send(msg)
+            # Only send if mail config present
+            if app.config['MAIL_USERNAME'] and app.config['MAIL_PASSWORD']:
+                mail.send(msg)
+            else:
+                print("[MAIL] Skipping send: MAIL_USERNAME or MAIL_PASSWORD not set")
         except Exception as mail_err:
             print("Email sending failed:", mail_err)
 
@@ -168,6 +213,9 @@ def logout():
 @app.route("/predict", methods=["POST"])
 @login_required
 def predict():
+    if model is None:
+        return jsonify({"error": "Model not available on server"}), 500
+
     data = request.get_json()
     try:
         date = datetime.strptime(data['date'], '%Y-%m-%d')
@@ -245,4 +293,5 @@ def history():
         return jsonify({"error": "Failed to fetch history"}), 500
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    # Local dev: default port 5000. In Docker/Render we will use gunicorn/PORT.
+    app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
