@@ -20,7 +20,7 @@ function Register({ setAuth, setUsername }) {
     e.preventDefault();
 
     try {
-      const res = await axios.post('${API_URL}/register', form, {
+      const res = await axios.post(`${API_URL}/register`, form, {
         withCredentials: true,
       });
       
