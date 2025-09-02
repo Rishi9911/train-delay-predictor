@@ -20,7 +20,7 @@ app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key")
 FRONTEND_URL = os.getenv("FRONTEND_URL")
 
 # Enable CORS for the frontend + localhost during development
-CORS(app, resources={r"/*": {"origins": [FRONTEND_URL]}}, supports_credentials=True)
+CORS(app, resources={r"/*": {"origins": "*"}})
 
 # ---------------- Database config (support DATABASE_URL) ----------------
 DATABASE_URL = os.getenv("DATABASE_URL")  # e.g. postgres://user:pass@host:port/dbname
