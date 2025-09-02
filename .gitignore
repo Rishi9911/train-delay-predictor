@@ -27,7 +27,6 @@ yarn-error.log
 .DS_Store
 
 # ML / Model files
-*.pkl
 *.h5
 *.pt
 
