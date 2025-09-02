@@ -17,13 +17,20 @@ app = Flask(__name__)
 
 # Secrets & frontend origin (read from env, fall back to safe local defaults)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key")
-FRONTEND_URL = os.getenv("FRONTEND_URL")
+FRONTEND_URL = os.getenv("FRONTEND_URL", "https://traindelaypredictor.netlify.app")
 
 # Enable CORS for the frontend + localhost during development
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+CORS(app, resources={r"/*": {"origins": [FRONTEND_URL]}}, supports_credentials=True)
+
+# 🔹 Cookie settings for cross-site login
+app.config['SESSION_COOKIE_SAMESITE'] = "None"
+app.config['SESSION_COOKIE_SECURE'] = True  # must be True on Render (HTTPS)
+
 
 # ---------------- Database config (support DATABASE_URL) ----------------
 DATABASE_URL = os.getenv("DATABASE_URL")  # e.g. postgres://user:pass@host:port/dbname
+app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # if you prefer separate vars, those will be used only when DATABASE_URL not set:
 DB_HOST = os.getenv("DB_HOST", "localhost")
