@@ -5,6 +5,7 @@ wheel
 Flask==3.0.3
 Flask-Login==0.6.3
 Flask-Cors==5.0.0
+Flask-Mail==0.9.1
 pandas==2.2.2
 numpy==1.26.4
 scikit-learn==1.4.2
