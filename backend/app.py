@@ -8,7 +8,6 @@ import joblib
 import os
 from datetime import datetime
 from flask_mail import Mail, Message
-from urllib.parse import urlparse
 
 # ---------------- Flask App Setup ----------------
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -17,37 +16,34 @@ app = Flask(__name__)
 
 # 🔹 Cookie settings for cross-site login
 app.config['SESSION_COOKIE_SAMESITE'] = "None"
-app.config['SESSION_COOKIE_SECURE'] = True  # must be True on Render (HTTPS)
+app.config['SESSION_COOKIE_SECURE'] = True  # Render uses HTTPS
 
-# Secrets & frontend origin (read from env, fall back to safe local defaults)
+# 🔹 Secret + frontend origin
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://traindelaypredictor.netlify.app")
 
-# Enable CORS for the frontend + localhost during development
-CORS(app, resources={r"/*": {"origins": [FRONTEND_URL]}}, supports_credentials=True)
+# 🔹 Enable CORS (credentials allowed)
+CORS(
+    app,
+    supports_credentials=True,
+    resources={r"/*": {"origins": [FRONTEND_URL]}}
+)
 
-
-
-# ---------------- Database config (support DATABASE_URL) ----------------
-DATABASE_URL = os.getenv("DATABASE_URL")  # e.g. postgres://user:pass@host:port/dbname
+# ---------------- Database config ----------------
+DATABASE_URL = os.getenv("DATABASE_URL")
 app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
-# if you prefer separate vars, those will be used only when DATABASE_URL not set:
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = int(os.getenv("DB_PORT", 5432))
 DB_NAME = os.getenv("DB_NAME", "train_delay_db")
 DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASS = os.getenv("DB_PASS", "rishi@123")
+DB_PASS = os.getenv("DB_PASS", "password")
+
 
 def get_db_connection():
-    """
-    Connect using DATABASE_URL if present (Render provides this),
-    otherwise use individual DB_* environment vars or local defaults.
-    """
     try:
         if DATABASE_URL:
-            # psycopg2 accepts a connection string directly
             return psycopg2.connect(DATABASE_URL)
         else:
             return psycopg2.connect(
@@ -58,11 +54,11 @@ def get_db_connection():
                 password=DB_PASS
             )
     except Exception as e:
-        # log for debugging - on Render logs will show this
         print("[DB CONNECT] Error connecting to DB:", e)
         raise
 
-# ---------------- ML model load (safe) ----------------
+
+# ---------------- ML Model ----------------
 MODEL_PATH = os.path.join(BASE_DIR, "best_model.pkl")
 try:
     model = joblib.load(MODEL_PATH)
@@ -71,14 +67,17 @@ except Exception as e:
     print("Model load failed:", e)
     model = None
 
+
 # ---------------- Flask-Login ----------------
 login_manager = LoginManager()
 login_manager.init_app(app)
+
 
 class User(UserMixin):
     def __init__(self, id_, username):
         self.id = id_
         self.username = username
+
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -95,7 +94,8 @@ def load_user(user_id):
         print("[LOAD_USER] Error:", e)
     return None
 
-# ---------------- Flask-Mail Config (from env) ----------------
+
+# ---------------- Mail Config ----------------
 app.config['MAIL_SERVER'] = os.getenv("MAIL_SERVER", "smtp.gmail.com")
 app.config['MAIL_PORT'] = int(os.getenv("MAIL_PORT", 587))
 app.config['MAIL_USE_TLS'] = os.getenv("MAIL_USE_TLS", "True") == "True"
@@ -113,16 +113,22 @@ mail = Mail(app)
 def health():
     return jsonify({"status": "ok"}), 200
 
-# ---------------- root route ----------------
+
+# ---------------- Root route ----------------
 @app.route("/")
 def root():
     return jsonify({"message": "Train Delay Predictor API is running!"})
 
-@app.after_request
-def after_request(response):
-    print("CORS headers:", response.headers)
-    return response
 
+# ---------------- Force OPTIONS handler ----------------
+@app.route("/register", methods=["OPTIONS"])
+@app.route("/login", methods=["OPTIONS"])
+@app.route("/profile", methods=["OPTIONS"])
+@app.route("/predict", methods=["OPTIONS"])
+@app.route("/history", methods=["OPTIONS"])
+@app.route("/logout", methods=["OPTIONS"])
+def options_handler():
+    return "", 200
 
 
 # ---------------- Register ----------------
@@ -138,26 +144,24 @@ def register():
         conn = get_db_connection()
         cur = conn.cursor()
 
-        # Check if username or email already exists
         cur.execute("SELECT id FROM users WHERE username = %s OR email = %s", (username, email))
         if cur.fetchone():
             cur.close()
             conn.close()
             return jsonify({"message": "Username or Email already exists."}), 409
 
-        # Insert new user and return ID
-        cur.execute("INSERT INTO users (username, email, password) VALUES (%s, %s, %s) RETURNING id",
-                    (username, email, hashed_password))
+        cur.execute(
+            "INSERT INTO users (username, email, password) VALUES (%s, %s, %s) RETURNING id",
+            (username, email, hashed_password)
+        )
         user_id = cur.fetchone()[0]
         conn.commit()
         cur.close()
         conn.close()
 
-        # Auto-login
         user_obj = User(user_id, username)
         login_user(user_obj)
 
-        # Send Welcome Email (uses FRONTEND_URL from env)
         try:
             msg = Message(
                 subject="Welcome to Train Delay Predictor 🚆",
@@ -165,22 +169,11 @@ def register():
                 html=f"""
                 <h2>Hello {username},</h2>
                 <p>🎉 Congratulations! You have successfully registered on <b>Train Delay Predictor</b>.</p>
-                <p>You can now log in with your username and password to:</p>
-                <ul>
-                    <li>Predict train delays</li>
-                    <li>Track your history</li>
-                    <li>Enjoy our AI-powered dashboard</li>
-                </ul>
-                <p>🔹 <a href="{FRONTEND_URL}">Click here to Login</a></p>
-                <br>
-                <p>Thanks for joining us!<br>🚆 Train Delay Predictor Team</p>
+                <p><a href="{FRONTEND_URL}">Click here to Login</a></p>
                 """
             )
-            # Only send if mail config present
             if app.config['MAIL_USERNAME'] and app.config['MAIL_PASSWORD']:
                 mail.send(msg)
-            else:
-                print("[MAIL] Skipping send: MAIL_USERNAME or MAIL_PASSWORD not set")
         except Exception as mail_err:
             print("Email sending failed:", mail_err)
 
@@ -189,6 +182,7 @@ def register():
     except Exception as e:
         print("Registration error:", e)
         return jsonify({"message": "Error occurred"}), 500
+
 
 # ---------------- Login ----------------
 @app.route("/login", methods=["POST"])
@@ -216,11 +210,13 @@ def login():
         print("Login error:", e)
         return jsonify({"message": "Error occurred"}), 500
 
+
 # ---------------- Profile ----------------
 @app.route("/profile", methods=["GET"])
 @login_required
 def profile():
     return jsonify({"username": current_user.username})
+
 
 # ---------------- Logout ----------------
 @app.route("/logout", methods=["POST"])
@@ -228,6 +224,7 @@ def profile():
 def logout():
     logout_user()
     return jsonify({"message": "Logged out successfully."}), 200
+
 
 # ---------------- Predict ----------------
 @app.route("/predict", methods=["POST"])
@@ -274,6 +271,7 @@ def predict():
         print("[PREDICT] Error:", e)
         return jsonify({"error": "Prediction failed"}), 500
 
+
 # ---------------- History ----------------
 @app.route("/history", methods=["GET"])
 @login_required
@@ -281,14 +279,12 @@ def history():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
-
         cur.execute("""
             SELECT date, temperature, rain, fog, visibility, windspeed, predicted_delay
             FROM predictions
             WHERE user_id = %s
             ORDER BY id DESC
         """, (current_user.id,))
-
         rows = cur.fetchall()
         cur.close()
         conn.close()
@@ -305,13 +301,12 @@ def history():
             }
             for r in rows
         ]
-
         return jsonify(result)
 
     except Exception as e:
         print("[HISTORY] Error:", e)
         return jsonify({"error": "Failed to fetch history"}), 500
 
+
 if __name__ == "__main__":
-    # Local dev: default port 5000. In Docker/Render we will use gunicorn/PORT.
     app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
