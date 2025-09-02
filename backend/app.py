@@ -15,6 +15,10 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__)
 
+# 🔹 Cookie settings for cross-site login
+app.config['SESSION_COOKIE_SAMESITE'] = "None"
+app.config['SESSION_COOKIE_SECURE'] = True  # must be True on Render (HTTPS)
+
 # Secrets & frontend origin (read from env, fall back to safe local defaults)
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://traindelaypredictor.netlify.app")
@@ -22,9 +26,6 @@ FRONTEND_URL = os.getenv("FRONTEND_URL", "https://traindelaypredictor.netlify.ap
 # Enable CORS for the frontend + localhost during development
 CORS(app, resources={r"/*": {"origins": [FRONTEND_URL]}}, supports_credentials=True)
 
-# 🔹 Cookie settings for cross-site login
-app.config['SESSION_COOKIE_SAMESITE'] = "None"
-app.config['SESSION_COOKIE_SECURE'] = True  # must be True on Render (HTTPS)
 
 
 # ---------------- Database config (support DATABASE_URL) ----------------
@@ -116,6 +117,12 @@ def health():
 @app.route("/")
 def root():
     return jsonify({"message": "Train Delay Predictor API is running!"})
+
+@app.after_request
+def after_request(response):
+    print("CORS headers:", response.headers)
+    return response
+
 
 
 # ---------------- Register ----------------
