@@ -14,15 +14,15 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 app = Flask(__name__)
 
-# 🔹 Cookie settings for cross-site login
+# 🔹 Session cookies (for cross-site auth between Netlify & Render)
 app.config['SESSION_COOKIE_SAMESITE'] = "None"
 app.config['SESSION_COOKIE_SECURE'] = True  # Render uses HTTPS
 
-# 🔹 Secret + frontend origin
+# 🔹 Secret key & frontend URL
 app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "https://traindelaypredictor.netlify.app")
 
-# 🔹 Enable CORS (credentials allowed)
+# 🔹 Enable CORS with credentials
 CORS(
     app,
     supports_credentials=True,
@@ -30,9 +30,7 @@ CORS(
 )
 
 # ---------------- Database config ----------------
-DATABASE_URL = os.getenv("DATABASE_URL")
-app.config["SQLALCHEMY_DATABASE_URI"] = DATABASE_URL
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+DATABASE_URL = os.getenv("DATABASE_URL")  # full Postgres URL from Render
 
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = int(os.getenv("DB_PORT", 5432))
@@ -40,11 +38,10 @@ DB_NAME = os.getenv("DB_NAME", "train_delay_db")
 DB_USER = os.getenv("DB_USER", "postgres")
 DB_PASS = os.getenv("DB_PASS", "password")
 
-
 def get_db_connection():
     try:
         if DATABASE_URL:
-            return psycopg2.connect(DATABASE_URL)
+            return psycopg2.connect(DATABASE_URL, sslmode="require")
         else:
             return psycopg2.connect(
                 host=DB_HOST,
@@ -54,30 +51,26 @@ def get_db_connection():
                 password=DB_PASS
             )
     except Exception as e:
-        print("[DB CONNECT] Error connecting to DB:", e)
+        print("[DB CONNECT] Error:", e)
         raise
 
-
-# ---------------- ML Model ----------------
+# ---------------- Load ML Model ----------------
 MODEL_PATH = os.path.join(BASE_DIR, "best_model.pkl")
 try:
     model = joblib.load(MODEL_PATH)
-    print("Model loaded from", MODEL_PATH)
+    print("✅ Model loaded from", MODEL_PATH)
 except Exception as e:
-    print("Model load failed:", e)
+    print("❌ Model load failed:", e)
     model = None
-
 
 # ---------------- Flask-Login ----------------
 login_manager = LoginManager()
 login_manager.init_app(app)
 
-
 class User(UserMixin):
     def __init__(self, id_, username):
         self.id = id_
         self.username = username
-
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -94,7 +87,6 @@ def load_user(user_id):
         print("[LOAD_USER] Error:", e)
     return None
 
-
 # ---------------- Mail Config ----------------
 app.config['MAIL_SERVER'] = os.getenv("MAIL_SERVER", "smtp.gmail.com")
 app.config['MAIL_PORT'] = int(os.getenv("MAIL_PORT", 587))
@@ -103,7 +95,7 @@ app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME", None)
 app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD", None)
 app.config['MAIL_DEFAULT_SENDER'] = (
     os.getenv("MAIL_DEFAULT_SENDER_NAME", "Train Delay Predictor"),
-    os.getenv("MAIL_DEFAULT_SENDER_EMAIL", app.config['MAIL_USERNAME'])
+    os.getenv("MAIL_DEFAULT_SENDER_EMAIL", os.getenv("MAIL_USERNAME", None))
 )
 
 mail = Mail(app)
@@ -113,14 +105,12 @@ mail = Mail(app)
 def health():
     return jsonify({"status": "ok"}), 200
 
-
 # ---------------- Root route ----------------
 @app.route("/")
 def root():
-    return jsonify({"message": "Train Delay Predictor API is running!"})
+    return jsonify({"message": "🚆 Train Delay Predictor API is running!"})
 
-
-# ---------------- Force OPTIONS handler ----------------
+# ---------------- OPTIONS handler ----------------
 @app.route("/register", methods=["OPTIONS"])
 @app.route("/login", methods=["OPTIONS"])
 @app.route("/profile", methods=["OPTIONS"])
@@ -129,7 +119,6 @@ def root():
 @app.route("/logout", methods=["OPTIONS"])
 def options_handler():
     return "", 200
-
 
 # ---------------- Register ----------------
 @app.route("/register", methods=["POST"])
@@ -162,27 +151,23 @@ def register():
         user_obj = User(user_id, username)
         login_user(user_obj)
 
+        # Send welcome email if mail is configured
         try:
-            msg = Message(
-                subject="Welcome to Train Delay Predictor 🚆",
-                recipients=[email],
-                html=f"""
-                <h2>Hello {username},</h2>
-                <p>🎉 Congratulations! You have successfully registered on <b>Train Delay Predictor</b>.</p>
-                <p><a href="{FRONTEND_URL}">Click here to Login</a></p>
-                """
-            )
             if app.config['MAIL_USERNAME'] and app.config['MAIL_PASSWORD']:
+                msg = Message(
+                    subject="Welcome to Train Delay Predictor 🚆",
+                    recipients=[email],
+                    html=f"<h2>Hello {username},</h2><p>🎉 You have successfully registered on <b>Train Delay Predictor</b>.</p><p><a href='{FRONTEND_URL}'>Login here</a></p>"
+                )
                 mail.send(msg)
         except Exception as mail_err:
-            print("Email sending failed:", mail_err)
+            print("[MAIL] Failed:", mail_err)
 
         return jsonify({"message": "User registered successfully.", "username": username}), 201
 
     except Exception as e:
-        print("Registration error:", e)
+        print("[REGISTER] Error:", e)
         return jsonify({"message": "Error occurred"}), 500
-
 
 # ---------------- Login ----------------
 @app.route("/login", methods=["POST"])
@@ -207,9 +192,8 @@ def login():
             return jsonify({"message": "Invalid username or password"}), 401
 
     except Exception as e:
-        print("Login error:", e)
+        print("[LOGIN] Error:", e)
         return jsonify({"message": "Error occurred"}), 500
-
 
 # ---------------- Profile ----------------
 @app.route("/profile", methods=["GET"])
@@ -217,14 +201,12 @@ def login():
 def profile():
     return jsonify({"username": current_user.username})
 
-
 # ---------------- Logout ----------------
 @app.route("/logout", methods=["POST"])
 @login_required
 def logout():
     logout_user()
     return jsonify({"message": "Logged out successfully."}), 200
-
 
 # ---------------- Predict ----------------
 @app.route("/predict", methods=["POST"])
@@ -271,7 +253,6 @@ def predict():
         print("[PREDICT] Error:", e)
         return jsonify({"error": "Prediction failed"}), 500
 
-
 # ---------------- History ----------------
 @app.route("/history", methods=["GET"])
 @login_required
@@ -307,6 +288,6 @@ def history():
         print("[HISTORY] Error:", e)
         return jsonify({"error": "Failed to fetch history"}), 500
 
-
+# ---------------- Main ----------------
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
