@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { API_URL } from "./config";
 
 function Register({ setAuth, setUsername }) {
   const [form, setForm] = useState({
@@ -18,10 +19,10 @@ function Register({ setAuth, setUsername }) {
     e.preventDefault();
 
     try {
-      const res = await axios.post('http://localhost:5000/register', form, {
+      const res = await axios.post(`${API_URL}/register`, form, {
         withCredentials: true,
       });
-      
+
       setMessage(res.data.message);
 
       // Auto-login after successful registration

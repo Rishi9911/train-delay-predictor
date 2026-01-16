@@ -16,7 +16,9 @@ load_dotenv()
 # Flask App Setup 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY')
-CORS(app, supports_credentials=True)
+# Production CORS: allow Vercel app, fallback to localhost for dev
+FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
+CORS(app, supports_credentials=True, origins=[FRONTEND_URL])
 
 # PostgreSQL config
 DB_HOST = os.getenv('DB_HOST')
@@ -30,6 +32,11 @@ MODEL_PATH = os.path.join(BASE_DIR, "best_model.pkl")
 model = joblib.load(MODEL_PATH)
 
 def get_db_connection():
+    # Production DB URL (Render/Neon)
+    if os.getenv('DATABASE_URL'):
+        return psycopg2.connect(os.getenv('DATABASE_URL'))
+    
+    # Local fallback
     return psycopg2.connect(
         host=DB_HOST,
         dbname=DB_NAME,

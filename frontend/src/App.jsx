@@ -3,10 +3,11 @@ import axios from "axios";
 import Login from "./Login";
 import Register from "./Register";
 import "./App.css";
+import { API_URL } from "./config";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { motion, AnimatePresence } from "framer-motion";
-import {  FaHome, FaHistory, FaCog, FaTrain, FaUserCircle, FaLinkedin, FaGithub } from "react-icons/fa";
+import { FaHome, FaHistory, FaCog, FaTrain, FaUserCircle, FaLinkedin, FaGithub } from "react-icons/fa";
 import { MdEmail } from "react-icons/md";
 
 
@@ -37,18 +38,18 @@ function App() {
 
   // Fetch username on refresh
   useEffect(() => {
-    axios.get("http://localhost:5000/profile", { withCredentials: true })
+    axios.get(`${API_URL}/profile`, { withCredentials: true })
       .then(res => {
         if (res.data.username) {
           setAuth(true);
           setUsername(res.data.username);
         }
       })
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const handleLogout = async () => {
-    await axios.post("http://localhost:5000/logout", {}, { withCredentials: true });
+    await axios.post(`${API_URL}/logout`, {}, { withCredentials: true });
     setAuth(false);
     setUsername("");
     setResult(null);
@@ -60,7 +61,7 @@ function App() {
 
   const fetchHistory = async () => {
     try {
-      const res = await axios.get("http://localhost:5000/history", { withCredentials: true });
+      const res = await axios.get(`${API_URL}/history`, { withCredentials: true });
       setHistory(res.data);
     } catch {
       toast.error("Failed to fetch history.");
@@ -72,7 +73,7 @@ function App() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post("http://localhost:5000/predict", form, { withCredentials: true });
+      const res = await axios.post(`${API_URL}/predict`, form, { withCredentials: true });
       setResult(res.data.predicted_delay);
       toast.success(`Predicted Delay: ${res.data.predicted_delay} min`);
     } catch {
@@ -85,31 +86,31 @@ function App() {
     <div className="navbar">
       <div className="nav-left"><FaTrain /> Train Delay Predictor</div>
       <div className="nav-right">
-        <button onClick={() => { 
+        <button onClick={() => {
           window.scrollTo({ top: 0, behavior: "smooth" });
-          setShowPredictForm(false); 
+          setShowPredictForm(false);
           setShowHistory(false);
         }}>
           <FaHome /> Home
         </button>
 
         {auth && (
-          <button onClick={() => { 
-            setShowPredictForm(true); 
-            setShowHistory(false); 
+          <button onClick={() => {
+            setShowPredictForm(true);
+            setShowHistory(false);
             setResult(null);
-            setTimeout(()=>document.getElementById("predict-section")?.scrollIntoView({ behavior: "smooth" }),200);
+            setTimeout(() => document.getElementById("predict-section")?.scrollIntoView({ behavior: "smooth" }), 200);
           }}>
             Predict
           </button>
         )}
 
         {auth && (
-          <button onClick={() => { 
-            fetchHistory(); 
-            setShowHistory(true); 
+          <button onClick={() => {
+            fetchHistory();
+            setShowHistory(true);
             setShowPredictForm(false);
-            setTimeout(()=>document.getElementById("history-section")?.scrollIntoView({ behavior: "smooth" }),200);
+            setTimeout(() => document.getElementById("history-section")?.scrollIntoView({ behavior: "smooth" }), 200);
           }}>
             <FaHistory /> History
           </button>
@@ -168,7 +169,7 @@ function App() {
   );
 
   const handleLoginSuccess = () => {
-    axios.get("http://localhost:5000/profile", { withCredentials: true })
+    axios.get(`${API_URL}/profile`, { withCredentials: true })
       .then(res => {
         if (res.data.username) {
           setUsername(res.data.username);
@@ -215,10 +216,10 @@ function App() {
         <h2>🚄 Explore Our Trains</h2>
         <div className="train-cards">
           {[
-            {name: "High-Speed", img: "/images/highspeed.jpg", desc: "Experience the future of travel."},
-            {name: "Express", img: "/images/express.jpg", desc: "Fast & reliable long-distance service."},
-            {name: "Regional", img: "/images/regional.jpg", desc: "Comfortable regional journeys."},
-            {name: "Freight", img: "/images/freight.jpg", desc: "Efficient cargo transport."},
+            { name: "High-Speed", img: "/images/highspeed.jpg", desc: "Experience the future of travel." },
+            { name: "Express", img: "/images/express.jpg", desc: "Fast & reliable long-distance service." },
+            { name: "Regional", img: "/images/regional.jpg", desc: "Comfortable regional journeys." },
+            { name: "Freight", img: "/images/freight.jpg", desc: "Efficient cargo transport." },
           ].map((train, idx) => (
             <div className="train-card" key={idx}>
               <img src={train.img} alt={train.name} />
@@ -300,8 +301,8 @@ function App() {
           )}
         </section>
       )}
-      
-     {/* --- Contact Section --- */}
+
+      {/* --- Contact Section --- */}
       <section className="contact-section">
         <h2>📬 Contact Us</h2>
         <p>Have questions or suggestions? We'd love to hear from you!</p>
@@ -315,8 +316,8 @@ function App() {
 
       {/* --- Footer -v-- */}
       <footer className="footer">
-  <p>© 2025 Train Delay Predictor | All Rights Reserved</p>
-      {/* --- Footer -v-- 
+        <p>© 2025 Train Delay Predictor | All Rights Reserved</p>
+        {/* --- Footer -v-- 
   <div className="social-links"> 
     <a href="https://www.linkedin.com/in/rishi-chaudhari-30133518b/" target="_blank" rel="noopener noreferrer">
       <FaLinkedin />
@@ -328,7 +329,7 @@ function App() {
       <MdEmail />
     </a>
   </div> */}
-  </footer>
+      </footer>
 
       {showModal && <AuthModal />}
     </div>
