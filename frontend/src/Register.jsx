@@ -1,8 +1,6 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL;
-
 function Register({ setAuth, setUsername }) {
   const [form, setForm] = useState({
     username: '',
@@ -20,7 +18,7 @@ function Register({ setAuth, setUsername }) {
     e.preventDefault();
 
     try {
-      const res = await axios.post(`${API_URL}/register`, form, {
+      const res = await axios.post('http://localhost:5000/register', form, {
         withCredentials: true,
       });
       

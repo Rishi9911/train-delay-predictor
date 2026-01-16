@@ -5,65 +5,39 @@ import psycopg2
 from werkzeug.security import generate_password_hash, check_password_hash
 import pandas as pd
 import joblib
-import os
+from flask_mail import Mail, Message 
 from datetime import datetime
-from flask_mail import Mail, Message
+from dotenv import load_dotenv 
+import os
 
-# ---------------- Flask App Setup ----------------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# Load environment variables
+load_dotenv()
 
+# Flask App Setup 
 app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY')
+CORS(app, supports_credentials=True)
 
-# 🔹 Session cookies (for cross-site auth between Netlify & Render)
-app.config['SESSION_COOKIE_SAMESITE'] = "None"
-app.config['SESSION_COOKIE_SECURE'] = True  # Render uses HTTPS
+# PostgreSQL config
+DB_HOST = os.getenv('DB_HOST')
+DB_NAME = os.getenv('DB_NAME')
+DB_USER = os.getenv('DB_USER')
+DB_PASS = os.getenv('DB_PASS')
 
-# 🔹 Secret key & frontend URL
-app.secret_key = os.getenv("SECRET_KEY", "dev-secret-key")
-FRONTEND_URL = os.getenv("FRONTEND_URL", "https://traindelaypredictor.netlify.app")
-
-# 🔹 Enable CORS with credentials
-CORS(
-    app,
-    supports_credentials=True,
-    resources={r"/*": {"origins": [FRONTEND_URL]}}
-)
-
-# ---------------- Database config ----------------
-DATABASE_URL = os.getenv("DATABASE_URL")  # full Postgres URL from Render
-
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_PORT = int(os.getenv("DB_PORT", 5432))
-DB_NAME = os.getenv("DB_NAME", "train_delay_db")
-DB_USER = os.getenv("DB_USER", "postgres")
-DB_PASS = os.getenv("DB_PASS", "password")
+# Load ML Model
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_PATH = os.path.join(BASE_DIR, "best_model.pkl")
+model = joblib.load(MODEL_PATH)
 
 def get_db_connection():
-    try:
-        if DATABASE_URL:
-            return psycopg2.connect(DATABASE_URL, sslmode="require")
-        else:
-            return psycopg2.connect(
-                host=DB_HOST,
-                port=DB_PORT,
-                dbname=DB_NAME,
-                user=DB_USER,
-                password=DB_PASS
-            )
-    except Exception as e:
-        print("[DB CONNECT] Error:", e)
-        raise
+    return psycopg2.connect(
+        host=DB_HOST,
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASS
+    )
 
-# ---------------- Load ML Model ----------------
-MODEL_PATH = os.path.join(BASE_DIR, "best_model.pkl")
-try:
-    model = joblib.load(MODEL_PATH)
-    print("✅ Model loaded from", MODEL_PATH)
-except Exception as e:
-    print("❌ Model load failed:", e)
-    model = None
-
-# ---------------- Flask-Login ----------------
+# Flask-Login 
 login_manager = LoginManager()
 login_manager.init_app(app)
 
@@ -74,51 +48,25 @@ class User(UserMixin):
 
 @login_manager.user_loader
 def load_user(user_id):
-    try:
-        conn = get_db_connection()
-        cur = conn.cursor()
-        cur.execute("SELECT id, username FROM users WHERE id = %s", (user_id,))
-        user = cur.fetchone()
-        cur.close()
-        conn.close()
-        if user:
-            return User(user[0], user[1])
-    except Exception as e:
-        print("[LOAD_USER] Error:", e)
+    conn = get_db_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT id, username FROM users WHERE id = %s", (user_id,))
+    user = cur.fetchone()
+    cur.close()
+    conn.close()
+    if user:
+        return User(user[0], user[1])
     return None
 
-# ---------------- Mail Config ----------------
-app.config['MAIL_SERVER'] = os.getenv("MAIL_SERVER", "smtp.gmail.com")
-app.config['MAIL_PORT'] = int(os.getenv("MAIL_PORT", 587))
-app.config['MAIL_USE_TLS'] = os.getenv("MAIL_USE_TLS", "True") == "True"
-app.config['MAIL_USERNAME'] = os.getenv("MAIL_USERNAME", None)
-app.config['MAIL_PASSWORD'] = os.getenv("MAIL_PASSWORD", None)
-app.config['MAIL_DEFAULT_SENDER'] = (
-    os.getenv("MAIL_DEFAULT_SENDER_NAME", "Train Delay Predictor"),
-    os.getenv("MAIL_DEFAULT_SENDER_EMAIL", os.getenv("MAIL_USERNAME", None))
-)
+# ---------------- Flask-Mail Config ----------------
+app.config['MAIL_SERVER'] = os.getenv('MAIL_SERVER')
+app.config['MAIL_PORT'] = int(os.getenv('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.getenv('MAIL_USE_TLS') == 'True'
+app.config['MAIL_USERNAME'] = os.getenv('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.getenv('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = ('Train Delay Predictor', 'rishichaudhari999@gmail.com')
 
 mail = Mail(app)
-
-# ---------------- Health route ----------------
-@app.route("/health", methods=["GET"])
-def health():
-    return jsonify({"status": "ok"}), 200
-
-# ---------------- Root route ----------------
-@app.route("/")
-def root():
-    return jsonify({"message": "🚆 Train Delay Predictor API is running!"})
-
-# ---------------- OPTIONS handler ----------------
-@app.route("/register", methods=["OPTIONS"])
-@app.route("/login", methods=["OPTIONS"])
-@app.route("/profile", methods=["OPTIONS"])
-@app.route("/predict", methods=["OPTIONS"])
-@app.route("/history", methods=["OPTIONS"])
-@app.route("/logout", methods=["OPTIONS"])
-def options_handler():
-    return "", 200
 
 # ---------------- Register ----------------
 @app.route("/register", methods=["POST"])
@@ -133,40 +81,52 @@ def register():
         conn = get_db_connection()
         cur = conn.cursor()
 
+        # Check if username or email already exists
         cur.execute("SELECT id FROM users WHERE username = %s OR email = %s", (username, email))
         if cur.fetchone():
             cur.close()
             conn.close()
             return jsonify({"message": "Username or Email already exists."}), 409
 
-        cur.execute(
-            "INSERT INTO users (username, email, password) VALUES (%s, %s, %s) RETURNING id",
-            (username, email, hashed_password)
-        )
+        # Insert new user and return ID
+        cur.execute("INSERT INTO users (username, email, password) VALUES (%s, %s, %s) RETURNING id",
+                    (username, email, hashed_password))
         user_id = cur.fetchone()[0]
         conn.commit()
         cur.close()
         conn.close()
 
+        # Auto-login
         user_obj = User(user_id, username)
         login_user(user_obj)
 
-        # Send welcome email if mail is configured
+        # Send Welcome Email
         try:
-            if app.config['MAIL_USERNAME'] and app.config['MAIL_PASSWORD']:
-                msg = Message(
-                    subject="Welcome to Train Delay Predictor 🚆",
-                    recipients=[email],
-                    html=f"<h2>Hello {username},</h2><p>🎉 You have successfully registered on <b>Train Delay Predictor</b>.</p><p><a href='{FRONTEND_URL}'>Login here</a></p>"
-                )
-                mail.send(msg)
+            msg = Message(
+                subject="Welcome to Train Delay Predictor 🚆",
+                recipients=[email],
+                html=f"""
+                <h2>Hello {username},</h2>
+                <p>🎉 Congratulations! You have successfully registered on <b>Train Delay Predictor</b>.</p>
+                <p>You can now log in with your username and password to:</p>
+                <ul>
+                    <li>Predict train delays</li>
+                    <li>Track your history</li>
+                    <li>Enjoy our AI-powered dashboard</li>
+                </ul>
+                <p>🔹 <a href="http://localhost:3000/">Click here to Login</a></p>
+                <br>
+                <p>Thanks for joining us!<br>🚆 TDP Team</p>
+                """
+            )
+            mail.send(msg)
         except Exception as mail_err:
-            print("[MAIL] Failed:", mail_err)
+            print("Email sending failed:", mail_err)
 
         return jsonify({"message": "User registered successfully.", "username": username}), 201
 
     except Exception as e:
-        print("[REGISTER] Error:", e)
+        print("Registration error:", e)
         return jsonify({"message": "Error occurred"}), 500
 
 # ---------------- Login ----------------
@@ -192,7 +152,7 @@ def login():
             return jsonify({"message": "Invalid username or password"}), 401
 
     except Exception as e:
-        print("[LOGIN] Error:", e)
+        print("Login error:", e)
         return jsonify({"message": "Error occurred"}), 500
 
 # ---------------- Profile ----------------
@@ -212,9 +172,6 @@ def logout():
 @app.route("/predict", methods=["POST"])
 @login_required
 def predict():
-    if model is None:
-        return jsonify({"error": "Model not available on server"}), 500
-
     data = request.get_json()
     try:
         date = datetime.strptime(data['date'], '%Y-%m-%d')
@@ -260,12 +217,14 @@ def history():
     try:
         conn = get_db_connection()
         cur = conn.cursor()
+
         cur.execute("""
             SELECT date, temperature, rain, fog, visibility, windspeed, predicted_delay
             FROM predictions
             WHERE user_id = %s
             ORDER BY id DESC
         """, (current_user.id,))
+
         rows = cur.fetchall()
         cur.close()
         conn.close()
@@ -282,12 +241,12 @@ def history():
             }
             for r in rows
         ]
+
         return jsonify(result)
 
     except Exception as e:
         print("[HISTORY] Error:", e)
         return jsonify({"error": "Failed to fetch history"}), 500
 
-# ---------------- Main ----------------
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=int(os.getenv("PORT", 5000)))
+    app.run(debug=True)

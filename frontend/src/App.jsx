@@ -12,9 +12,6 @@ import { MdEmail } from "react-icons/md";
 
 axios.defaults.withCredentials = true;
 
-const API_URL = process.env.REACT_APP_API_URL;
-
-
 function App() {
   const [auth, setAuth] = useState(false);
   const [username, setUsername] = useState("");
@@ -40,7 +37,7 @@ function App() {
 
   // Fetch username on refresh
   useEffect(() => {
-    axios.get(`${API_URL}/profile`, { withCredentials: true })
+    axios.get("http://localhost:5000/profile", { withCredentials: true })
       .then(res => {
         if (res.data.username) {
           setAuth(true);
@@ -51,7 +48,7 @@ function App() {
   }, []);
 
   const handleLogout = async () => {
-    await axios.post(`${API_URL}/logout`, {}, { withCredentials: true });
+    await axios.post("http://localhost:5000/logout", {}, { withCredentials: true });
     setAuth(false);
     setUsername("");
     setResult(null);
@@ -63,7 +60,7 @@ function App() {
 
   const fetchHistory = async () => {
     try {
-      const res = await axios.get(`${API_URL}/history`, { withCredentials: true });
+      const res = await axios.get("http://localhost:5000/history", { withCredentials: true });
       setHistory(res.data);
     } catch {
       toast.error("Failed to fetch history.");
@@ -75,7 +72,7 @@ function App() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const res = await axios.post(`${API_URL}/predict`, form, { withCredentials: true });
+      const res = await axios.post("http://localhost:5000/predict", form, { withCredentials: true });
       setResult(res.data.predicted_delay);
       toast.success(`Predicted Delay: ${res.data.predicted_delay} min`);
     } catch {
@@ -171,7 +168,7 @@ function App() {
   );
 
   const handleLoginSuccess = () => {
-    axios.get(`${API_URL}/profile`, { withCredentials: true })
+    axios.get("http://localhost:5000/profile", { withCredentials: true })
       .then(res => {
         if (res.data.username) {
           setUsername(res.data.username);
@@ -190,7 +187,6 @@ function App() {
       {/* Hero Section */}
       <motion.section
         className="hero parallax"
-        style={{ backgroundImage: "url('/images/hero-train.jpg')"}}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 1 }}
@@ -232,35 +228,6 @@ function App() {
           ))}
         </div>
       </section>
-
-      {/* --- Contact Section --- */}
-      <section className="contact-section">
-        <h2>📬 Contact Us</h2>
-        <p>Have questions or suggestions? We'd love to hear from you!</p>
-        <form className="contact-form">
-          <input type="text" placeholder="Your Name" required />
-          <input type="email" placeholder="Your Email" required />
-          <textarea placeholder="Your Message" rows="4" required></textarea>
-          <button type="submit">Send Message</button>
-        </form>
-      </section>
-
-      {/* --- Footer --- */}
-      <footer className="footer">
-  <p>© 2025 Train Delay Predictor | All Rights Reserved</p>
-  <div className="social-links">
-    <a href="https://www.linkedin.com/in/rishi-chaudhari-30133518b/" target="_blank" rel="noopener noreferrer">
-      <FaLinkedin />
-    </a>
-    <a href="https://github.com/Rishi9911" target="_blank" rel="noopener noreferrer">
-      <FaGithub />
-    </a>
-    <a href="mailto:rishichaudhari999@gmail.com">
-      <MdEmail />
-    </a>
-  </div>
-</footer>
-
 
       {/* Prediction Section */}
       {auth && showPredictForm && (
@@ -333,6 +300,35 @@ function App() {
           )}
         </section>
       )}
+      
+     {/* --- Contact Section --- */}
+      <section className="contact-section">
+        <h2>📬 Contact Us</h2>
+        <p>Have questions or suggestions? We'd love to hear from you!</p>
+        <form className="contact-form">
+          <input type="text" placeholder="Your Name" required />
+          <input type="email" placeholder="Your Email" required />
+          <textarea placeholder="Your Message" rows="4" required></textarea>
+          <button type="submit">Send Message</button>
+        </form>
+      </section>
+
+      {/* --- Footer -v-- */}
+      <footer className="footer">
+  <p>© 2025 Train Delay Predictor | All Rights Reserved</p>
+      {/* --- Footer -v-- 
+  <div className="social-links"> 
+    <a href="https://www.linkedin.com/in/rishi-chaudhari-30133518b/" target="_blank" rel="noopener noreferrer">
+      <FaLinkedin />
+    </a>
+    <a href="https://github.com/Rishi9911" target="_blank" rel="noopener noreferrer">
+      <FaGithub />
+    </a>
+    <a href="mailto:rishichaudhari999@gmail.com">
+      <MdEmail />
+    </a>
+  </div> */}
+  </footer>
 
       {showModal && <AuthModal />}
     </div>
