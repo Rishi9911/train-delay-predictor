@@ -20,6 +20,11 @@ app.secret_key = os.getenv('SECRET_KEY')
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:3000')
 CORS(app, supports_credentials=True, origins=[FRONTEND_URL])
 
+# Session Config for Cross-Site Cookies (Render + Vercel)
+app.config['SESSION_COOKIE_SAMESITE'] = 'None'
+app.config['SESSION_COOKIE_SECURE'] = True
+
+
 # PostgreSQL config
 DB_HOST = os.getenv('DB_HOST')
 DB_NAME = os.getenv('DB_NAME')
