@@ -188,6 +188,7 @@ function App() {
       {/* Hero Section */}
       <motion.section
         className="hero parallax"
+        style={{ backgroundImage: "url(/images/hero-train.jpg)", backgroundSize: "cover", backgroundPosition: "center" }}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ duration: 1 }}
