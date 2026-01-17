@@ -7,8 +7,8 @@ import { API_URL } from "./config";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { motion, AnimatePresence } from "framer-motion";
-import { FaHome, FaHistory, FaCog, FaTrain, FaUserCircle, FaLinkedin, FaGithub } from "react-icons/fa";
-import { MdEmail } from "react-icons/md";
+import { FaHome, FaHistory, FaCog, FaTrain, FaUserCircle } from "react-icons/fa";
+// import { MdEmail } from "react-icons/md";
 
 
 axios.defaults.withCredentials = true;
